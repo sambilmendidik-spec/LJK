@@ -1,0 +1,7 @@
+{
+  "name": "Pemeriksa LJK & Koreksi Lembar Jawaban Siswa",
+  "description": "Aplikasi web pembuat, pencetak, pemindai kamera, dan pemeriksa otomatis lembar jawaban siswa (LJK) pilihan ganda dan uraian untuk guru dan sekolah.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
