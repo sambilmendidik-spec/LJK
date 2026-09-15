@@ -120,6 +120,13 @@ export const ResultsAnalyticsView: React.FC<ResultsAnalyticsViewProps> = ({
     setIsExportingReportPdf(true);
     setReportPdfSuccess(null);
 
+    // Ensure report view is active so DOM elements are rendered
+    if (activeSubTab !== 'report') {
+      setActiveSubTab('report');
+      // Brief delay to allow React to mount/paint the tab content
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     try {
       const sanitizedSubject = (currentExam.subject || 'Ujian').replace(/[^a-zA-Z0-9_-]/g, '_');
       const sanitizedClass = (currentExam.gradeClass || 'Kelas').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -129,7 +136,7 @@ export const ResultsAnalyticsView: React.FC<ResultsAnalyticsViewProps> = ({
         filename,
         orientation: 'portrait',
         format: reportPaperSize === 'F4' ? 'f4' : 'a4',
-        marginMm: 8,
+        marginMm: 6,
         scale: 2.2,
       });
 
