@@ -109,7 +109,6 @@ export const ResultsAnalyticsView: React.FC<ResultsAnalyticsViewProps> = ({
 
   const [isExportingReportPdf, setIsExportingReportPdf] = useState(false);
   const [reportPdfSuccess, setReportPdfSuccess] = useState<string | null>(null);
-  const [reportPaperSize, setReportPaperSize] = useState<'F4' | 'A4'>('F4');
 
   const handlePrintOfficialReport = () => {
     window.print();
@@ -120,27 +119,20 @@ export const ResultsAnalyticsView: React.FC<ResultsAnalyticsViewProps> = ({
     setIsExportingReportPdf(true);
     setReportPdfSuccess(null);
 
-    // Ensure report view is active so DOM elements are rendered
-    if (activeSubTab !== 'report') {
-      setActiveSubTab('report');
-      // Brief delay to allow React to mount/paint the tab content
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
     try {
       const sanitizedSubject = (currentExam.subject || 'Ujian').replace(/[^a-zA-Z0-9_-]/g, '_');
       const sanitizedClass = (currentExam.gradeClass || 'Kelas').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `Raport_Nilai_LJK_${sanitizedSubject}_${sanitizedClass}_${reportPaperSize}.pdf`;
+      const filename = `Raport_Nilai_LJK_${sanitizedSubject}_${sanitizedClass}.pdf`;
 
       await exportElementToPdf('printable-report', {
         filename,
         orientation: 'portrait',
-        format: reportPaperSize === 'F4' ? 'f4' : 'a4',
-        marginMm: 6,
+        format: 'a4',
+        marginMm: 8,
         scale: 2.2,
       });
 
-      setReportPdfSuccess(`✓ Berhasil mengunduh "${filename}" (${reportPaperSize})!`);
+      setReportPdfSuccess(`✓ Berhasil mengunduh "${filename}"!`);
       setTimeout(() => setReportPdfSuccess(null), 4000);
     } catch (error) {
       console.error('Gagal membuat PDF raport:', error);
@@ -190,41 +182,13 @@ export const ResultsAnalyticsView: React.FC<ResultsAnalyticsViewProps> = ({
             <span>Ekspor CSV</span>
           </button>
 
-          {/* Pilihan Format Kertas F4 / A4 */}
-          <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setReportPaperSize('F4')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                reportPaperSize === 'F4'
-                  ? 'bg-white text-emerald-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Format Kertas F4 / Folio (215 x 330 mm)"
-            >
-              F4
-            </button>
-            <button
-              type="button"
-              onClick={() => setReportPaperSize('A4')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                reportPaperSize === 'A4'
-                  ? 'bg-white text-emerald-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Format Kertas A4 (210 x 297 mm)"
-            >
-              A4
-            </button>
-          </div>
-
           {/* Tombol Simpan PDF Raport Nilai */}
           <button
             onClick={handleSaveReportPdf}
             disabled={totalStudents === 0 || isExportingReportPdf}
             id="btn-simpan-pdf-raport"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-            title={`Unduh berkas PDF dokumen rekap nilai raport format ${reportPaperSize}`}
+            title="Unduh berkas PDF dokumen rekap nilai raport resmi"
           >
             {isExportingReportPdf ? (
               <>
