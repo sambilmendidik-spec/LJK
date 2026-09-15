@@ -1,16 +1,63 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
+import { toPng } from 'html-to-image';
 
 export interface ExportPdfOptions {
   filename?: string;
   orientation?: 'portrait' | 'landscape';
-  format?: 'a4' | 'letter';
+  format?: 'a4' | 'f4' | 'letter' | [number, number];
   marginMm?: number;
   scale?: number;
 }
 
 /**
+ * Helper to get image data and dimensions from an element.
+ * Uses html2canvas-pro (which natively parses oklch/lab/lch color functions).
+ * Falls back to html-to-image if canvas generation fails.
+ */
+async function captureElementAsImage(
+  element: HTMLElement,
+  scale: number
+): Promise<{ dataUrl: string; width: number; height: number }> {
+  try {
+    const canvas = await html2canvas(element, {
+      scale,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      windowWidth: element.scrollWidth || 800,
+    });
+    return {
+      dataUrl: canvas.toDataURL('image/jpeg', 0.98),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  } catch (canvasErr) {
+    console.warn('html2canvas-pro fallback to html-to-image:', canvasErr);
+    // Fallback using browser-native SVG rendering via html-to-image
+    const dataUrl = await toPng(element, {
+      pixelRatio: scale,
+      backgroundColor: '#ffffff',
+    });
+
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+
+    return {
+      dataUrl,
+      width: img.naturalWidth || element.scrollWidth * scale,
+      height: img.naturalHeight || element.scrollHeight * scale,
+    };
+  }
+}
+
+/**
  * Renders an HTML element to a high-resolution PDF document and triggers download.
+ * Supports standard A4 (210 x 297 mm) and Indonesian F4/Folio (215 x 330 mm).
  */
 export async function exportElementToPdf(
   elementIdOrElement: string | HTMLElement,
@@ -33,20 +80,19 @@ export async function exportElementToPdf(
   }
 
   // Create high-resolution raster image of the element
-  const canvas = await html2canvas(element, {
-    scale,
-    useCORS: true,
-    logging: false,
-    backgroundColor: '#ffffff',
-    windowWidth: element.scrollWidth,
-  });
+  const { dataUrl, width: imgWidth, height: imgHeight } = await captureElementAsImage(
+    element,
+    scale
+  );
 
-  const imgData = canvas.toDataURL('image/jpeg', 0.98);
+  // Indonesian F4 (Folio) paper standard is 215 mm x 330 mm
+  const resolvedFormat: string | [number, number] =
+    format === 'f4' ? [215, 330] : format;
 
   const pdf = new jsPDF({
     orientation,
     unit: 'mm',
-    format,
+    format: resolvedFormat,
     compress: true,
   });
 
@@ -57,18 +103,16 @@ export async function exportElementToPdf(
   const printableHeight = pageHeight - marginMm * 2;
 
   // Calculate scaled dimensions to preserve aspect ratio
-  const imgWidth = canvas.width;
-  const imgHeight = canvas.height;
   const ratio = Math.min(printableWidth / imgWidth, printableHeight / imgHeight);
 
   const renderedWidth = imgWidth * ratio;
   const renderedHeight = imgHeight * ratio;
 
-  // Center the content on the A4 page
+  // Center the content on the page
   const xOffset = marginMm + (printableWidth - renderedWidth) / 2;
   const yOffset = marginMm;
 
-  pdf.addImage(imgData, 'JPEG', xOffset, yOffset, renderedWidth, renderedHeight, undefined, 'FAST');
+  pdf.addImage(dataUrl, 'JPEG', xOffset, yOffset, renderedWidth, renderedHeight, undefined, 'FAST');
 
   // Trigger file download
   pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`);

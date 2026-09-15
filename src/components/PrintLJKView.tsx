@@ -19,10 +19,11 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
   // Print customization states
   const [isSampleFilled, setIsSampleFilled] = useState(false);
   const [sampleStudentName, setSampleStudentName] = useState('Budi Santoso');
-  const [sampleAbsen, setSampleAbsen] = useState('07');
+  const [sampleStudentNumber, setSampleStudentNumber] = useState('07');
+  const [studentNumberDigits, setStudentNumberDigits] = useState<2 | 3>(2);
   const [schoolLogoText, setSchoolLogoText] = useState('TUT WURI HANDAYANI');
   const [customHeader, setCustomHeader] = useState('DINAS PENDIDIKAN DAN KEBUDAYAAN KABUPATEN');
-  const [paperOrientation, setPaperOrientation] = useState<'A4'>('A4');
+  const [paperSize, setPaperSize] = useState<'A4' | 'F4'>('A4');
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
 
@@ -30,7 +31,7 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
     window.print();
   };
 
-  const handleSavePdf = async () => {
+  const handleDownloadPdf = async () => {
     if (isExportingPdf || !currentExam) return;
     setIsExportingPdf(true);
     setPdfSuccessMessage(null);
@@ -38,23 +39,23 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
     try {
       const sanitizedSubject = (currentExam.subject || 'Ujian').replace(/[^a-zA-Z0-9_-]/g, '_');
       const sanitizedClass = (currentExam.gradeClass || 'Kelas').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const filename = `LJK_${sanitizedSubject}_${sanitizedClass}${isSampleFilled ? '_ContohTerisi' : ''}.pdf`;
+      const filename = `LJK_${sanitizedSubject}_${sanitizedClass}_${paperSize}${isSampleFilled ? '_ContohTerisi' : ''}.pdf`;
 
       await exportElementToPdf('printable-ljk', {
         filename,
         orientation: 'portrait',
-        format: 'a4',
+        format: paperSize === 'F4' ? 'f4' : 'a4',
         marginMm: 6,
         scale: 2.5,
       });
 
-      setPdfSuccessMessage(`✓ Berhasil mengunduh "${filename}"!`);
+      setPdfSuccessMessage(`✓ Berhasil mengunduh "${filename}" (Ukuran ${paperSize})! Berkas tersimpan di folder Unduhan.`);
       setTimeout(() => {
         setPdfSuccessMessage(null);
-      }, 4000);
+      }, 5000);
     } catch (error) {
       console.error('Gagal mengunduh PDF:', error);
-      alert('Terjadi kendala saat memproses berkas PDF. Silakan gunakan tombol "Cetak Printer" dan pilih "Save as PDF" di dialog browser.');
+      alert('Terjadi kendala saat memproses berkas PDF. Silakan gunakan tombol "Cetak Printer" lalu pilih opsi "Save as PDF / Simpan sebagai PDF" di dialog browser.');
     } finally {
       setIsExportingPdf(false);
     }
@@ -89,11 +90,22 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
     }
   }
 
-  const tensDigit = parseInt(sampleAbsen[0] || '0', 10);
-  const onesDigit = parseInt(sampleAbsen[1] || '7', 10);
+  // Digits array for horizontal student number OMR
+  const paddedNumber = sampleStudentNumber.padStart(studentNumberDigits, '0').slice(-studentNumberDigits);
+  const digitsArray = paddedNumber.split('').map(d => parseInt(d, 10) || 0);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Dynamic print style for paper size A4 vs F4 */}
+      <style>
+        {`@media print {
+          @page {
+            size: ${paperSize === 'F4' ? '215mm 330mm' : 'A4 portrait'};
+            margin: 5mm;
+          }
+        }`}
+      </style>
+
       {/* Non-Printable Configuration Toolbar */}
       <div className="print:hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -103,28 +115,28 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               Pembuat & Cetak Lembar Jawaban (LJK)
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Lembar jawaban dirancang presisi dengan 4 corner markers dan grid OMR untuk pembacaan kamera otomatis.
+              Lembar jawaban presisi OMR dengan nomor siswa mendatar hemat ruang dan pilihan format kertas A4 & F4.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Tombol Simpan PDF Aktif (Unduh Langsung) */}
+            {/* Tombol Unduh PDF Aktif (Langsung Download Berkas PDF) */}
             <button
-              onClick={handleSavePdf}
+              onClick={handleDownloadPdf}
               disabled={isExportingPdf}
-              id="btn-simpan-pdf"
+              id="btn-unduh-pdf"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm active:scale-95 transition-all disabled:opacity-75 cursor-pointer"
-              title="Unduh langsung lembar jawaban format berkas PDF (A4 presisi OMR)"
+              title={`Unduh langsung berkas PDF lembar jawaban ukuran ${paperSize}`}
             >
               {isExportingPdf ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Membuat PDF...</span>
+                  <span>Mengunduh PDF ({paperSize})...</span>
                 </>
               ) : (
                 <>
                   <FileDown className="w-4 h-4" />
-                  <span>Simpan PDF</span>
+                  <span>Unduh PDF</span>
                 </>
               )}
             </button>
@@ -151,13 +163,13 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
         )}
 
         {/* Filters and options */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-slate-100">
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">Pilih Ujian</label>
             <select
               value={currentExam.id}
               onChange={e => onSelectExam(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
             >
               {exams.map(e => (
                 <option key={e.id} value={e.id}>
@@ -167,13 +179,96 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
             </select>
           </div>
 
+          {/* Pilihan Ukuran Kertas A4 & F4 */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">
+              Pilihan Ukuran Kertas
+            </label>
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <button
+                type="button"
+                id="btn-paper-a4"
+                onClick={() => setPaperSize('A4')}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  paperSize === 'A4'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                A4 (210 × 297 mm)
+              </button>
+              <button
+                type="button"
+                id="btn-paper-f4"
+                onClick={() => setPaperSize('F4')}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                  paperSize === 'F4'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                F4 / Folio (215 × 330 mm)
+              </button>
+            </div>
+            <span className="text-[10px] text-slate-500 block mt-1">
+              {paperSize === 'A4'
+                ? 'Standar umum ISO (21,0 × 29,7 cm)'
+                : 'Standar kertas Folio sekolah Indonesia (21,5 × 33,0 cm)'}
+            </span>
+          </div>
+
+          {/* Format Digit Nomor Siswa */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">
+              Format Nomor Siswa (OMR)
+            </label>
+            <div className="flex items-center gap-1.5 pt-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudentNumberDigits(2);
+                  if (sampleStudentNumber.length > 2) {
+                    setSampleStudentNumber(sampleStudentNumber.slice(-2));
+                  }
+                }}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  studentNumberDigits === 2
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-bold'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                2 Digit (01-99)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudentNumberDigits(3);
+                  if (sampleStudentNumber.length < 3) {
+                    setSampleStudentNumber(sampleStudentNumber.padStart(3, '0'));
+                  }
+                }}
+                className={`flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  studentNumberDigits === 3
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-bold'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                3 Digit (001-999)
+              </button>
+            </div>
+            <span className="text-[10px] text-slate-500 block mt-1">
+              Disusun melebar mendatar (hemat ruang vertikal LJK)
+            </span>
+          </div>
+
+          {/* Tipe Lembar Jawaban */}
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">Tipe Lembar Jawaban</label>
-            <div className="flex items-center gap-2 pt-0.5">
+            <div className="flex items-center gap-1.5 pt-0.5">
               <button
                 type="button"
                 onClick={() => setIsSampleFilled(false)}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                   !isSampleFilled
                     ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -184,7 +279,7 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsSampleFilled(true)}
-                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                   isSampleFilled
                     ? 'bg-amber-50 border-amber-200 text-amber-800'
                     : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -194,37 +289,39 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               </button>
             </div>
           </div>
-
-          {isSampleFilled && (
-            <>
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Nama Siswa Sampel</label>
-                <input
-                  type="text"
-                  value={sampleStudentName}
-                  onChange={e => setSampleStudentName(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">No. Absen Sampel (2 Digit)</label>
-                <input
-                  type="text"
-                  maxLength={2}
-                  value={sampleAbsen}
-                  onChange={e => setSampleAbsen(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden font-mono"
-                />
-              </div>
-            </>
-          )}
         </div>
+
+        {isSampleFilled && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">Nama Siswa Sampel</label>
+              <input
+                type="text"
+                value={sampleStudentName}
+                onChange={e => setSampleStudentName(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Nomor Siswa Sampel ({studentNumberDigits} Digit)
+              </label>
+              <input
+                type="text"
+                maxLength={studentNumberDigits}
+                value={sampleStudentNumber}
+                onChange={e => setSampleStudentNumber(e.target.value.replace(/\D/g, '').slice(0, studentNumberDigits))}
+                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden font-mono"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-3 rounded-xl">
           <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
           <span>
-            <strong>Tips Cetak:</strong> Saat jendela print terbuka, pilih tujuan <em>"Save as PDF"</em> atau cetak langsung ke printer dengan orientasi <strong>Potrait</strong> dan margin <strong>None / Default</strong> untuk hasil presisi OMR.
+            <strong>Tips Unduh & Cetak:</strong> Klik <strong>"Unduh PDF"</strong> untuk mengunduh langsung berkas PDF dengan ukuran <strong>{paperSize}</strong>. Kolom nomor siswa dirancang mendatar ke samping agar tidak menghabiskan ruang halaman sehingga muat rapi dalam satu lembar.
           </span>
         </div>
       </div>
@@ -233,9 +330,16 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
       <div className="flex justify-center">
         <div 
           id="printable-ljk" 
-          className="w-full max-w-[840px] bg-white text-slate-900 border-2 border-slate-800 shadow-xl rounded-sm p-6 sm:p-8 relative print:border-2 print:border-black print:p-6 print:shadow-none print:m-0 print:w-full print:max-w-none select-none"
+          className={`w-full max-w-[840px] bg-white text-slate-900 border-2 border-slate-800 shadow-xl rounded-sm p-6 sm:p-7 relative print:border-2 print:border-black print:p-5 print:shadow-none print:m-0 print:w-full print:max-w-none select-none ${
+            paperSize === 'F4' ? 'min-h-[1200px]' : 'min-h-[1100px]'
+          }`}
           style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
         >
+          {/* Badge Format Kertas (Layar saja, tidak tercetak) */}
+          <div className="print:hidden absolute top-2 right-12 bg-slate-800 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs">
+            Kertas: {paperSize} ({paperSize === 'F4' ? '215 × 330 mm' : '210 × 297 mm'})
+          </div>
+
           {/* 4 CORNER FIDUCIAL CALIBRATION MARKERS ([ ■ ]) FOR CAMERA/OMR OCR */}
           <div className="absolute top-3 left-3 w-7 h-7 bg-black print:bg-black" title="Corner Marker TL"></div>
           <div className="absolute top-3 right-3 w-7 h-7 bg-black print:bg-black" title="Corner Marker TR"></div>
@@ -243,22 +347,22 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
           <div className="absolute bottom-3 right-3 w-7 h-7 bg-black print:bg-black" title="Corner Marker BR"></div>
 
           {/* KOP / HEADER LEMBAR JAWABAN */}
-          <div className="border-b-2 border-black pb-3 mb-4 text-center relative px-8">
+          <div className="border-b-2 border-black pb-2.5 mb-3 text-center relative px-8">
             <div className="flex items-center justify-between gap-4">
               {/* School Logo */}
-              <div className="w-16 h-16 border-2 border-black flex flex-col items-center justify-center p-1 rounded-sm text-center shrink-0">
-                <School className="w-8 h-8 text-slate-900" />
+              <div className="w-14 h-14 border-2 border-black flex flex-col items-center justify-center p-1 rounded-sm text-center shrink-0">
+                <School className="w-7 h-7 text-slate-900" />
                 <span className="text-[7px] font-bold uppercase leading-none mt-0.5">LOGO</span>
               </div>
 
               {/* Header Titles */}
               <div className="flex-1 text-center">
-                <h4 className="text-[11px] font-bold tracking-wider uppercase text-slate-800">{customHeader}</h4>
+                <h4 className="text-[10px] font-bold tracking-wider uppercase text-slate-800">{customHeader}</h4>
                 <h2 className="text-base sm:text-lg font-black tracking-tight uppercase text-black">{currentExam.schoolName}</h2>
                 <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-900 mt-0.5">
                   LEMBAR JAWABAN KOMPUTER (LJK)
                 </h3>
-                <p className="text-[11px] font-semibold text-slate-700">
+                <p className="text-[10.5px] font-semibold text-slate-700">
                   {currentExam.title} • TAHUN PELAJARAN {currentExam.academicYear} ({currentExam.semester.toUpperCase()})
                 </p>
               </div>
@@ -267,109 +371,131 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               <div className="w-24 border border-black p-1.5 text-center text-[10px] shrink-0">
                 <span className="block font-bold text-slate-900">DURASI</span>
                 <span className="font-extrabold text-xs">{currentExam.durationMinutes} Menit</span>
-                <span className="block text-[8px] text-slate-600 mt-1">KODE: {currentExam.id.slice(-6).toUpperCase()}</span>
+                <span className="block text-[8px] text-slate-600 mt-0.5">KODE: {currentExam.id.slice(-6).toUpperCase()}</span>
               </div>
             </div>
           </div>
 
-          {/* BAGIAN IDENTITAS SISWA & NOMOR ABSEN OMR */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-4">
-            {/* Box 1: Identitas Siswa (7 cols) */}
-            <div className="sm:col-span-7 border-2 border-black p-3 space-y-2 rounded-xs">
+          {/* BAGIAN IDENTITAS SISWA & NOMOR SISWA OMR (MELEBAR KE SAMPING - HEMAT RUANG) */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
+            {/* Box 1: Identitas Siswa (sm:col-span-6) */}
+            <div className="sm:col-span-6 border-2 border-black p-2.5 rounded-xs space-y-1.5 bg-white">
               <div className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 px-2 py-0.5 border-b border-black">
                 A. IDENTITAS PESERTA DIDIK
               </div>
 
-              <div className="space-y-1.5 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-24 font-bold text-slate-900">Mata Pelajaran</span>
-                  <span className="font-semibold text-slate-900">: {currentExam.subject}</span>
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-24 font-bold text-slate-900 text-[11px]">Mata Pelajaran</span>
+                  <span className="font-semibold text-slate-900 text-[11px] truncate">: {currentExam.subject}</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="w-24 font-bold text-slate-900">Kelas / Guru</span>
-                  <span className="font-semibold text-slate-900">: {currentExam.gradeClass} / {currentExam.teacherName}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-24 font-bold text-slate-900 text-[11px]">Kelas / Guru</span>
+                  <span className="font-semibold text-slate-900 text-[11px] truncate">: {currentExam.gradeClass} / {currentExam.teacherName}</span>
                 </div>
 
-                <div className="flex items-center gap-2 pt-1 border-t border-slate-200">
-                  <span className="w-24 font-bold text-slate-900">Nama Siswa</span>
-                  <div className="flex-1 border-b-2 border-dotted border-black min-h-[22px] px-1 font-bold text-slate-900">
+                <div className="flex items-center gap-1.5 pt-0.5 border-t border-slate-200">
+                  <span className="w-24 font-bold text-slate-900 text-[11px]">Nama Siswa</span>
+                  <div className="flex-1 border-b-2 border-dotted border-black min-h-[20px] px-1 font-bold text-slate-900 text-[11px]">
                     {isSampleFilled ? sampleStudentName : ''}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="w-24 font-bold text-slate-900">Tanda Tangan</span>
-                  <div className="flex-1 border-b border-slate-300 min-h-[20px]"></div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-24 font-bold text-slate-900 text-[11px]">Tanda Tangan</span>
+                  <div className="flex-1 border-b border-slate-400 min-h-[18px]"></div>
                 </div>
 
-                <div className="text-[9px] text-slate-600 italic pt-1 leading-tight">
-                  * Petunjuk: Isikan nama lengkap dan nomor absen dengan jelas. Hitamkan atau silang penuh (X) pada bulatan pilihan jawaban.
+                <div className="text-[8.5px] text-slate-600 italic pt-0.5 leading-tight">
+                  * Petunjuk: Tuliskan nama lengkap. Hitamkan bulatan nomor dan pilihan jawaban dengan pensil 2B atau pulpen hitam.
                 </div>
               </div>
             </div>
 
-            {/* Box 2: NOMOR ABSEN OMR BUBBLE (5 cols) (Requested explicitly in Prompt) */}
-            <div className="sm:col-span-5 border-2 border-black p-3 rounded-xs bg-slate-50/50">
-              <div className="text-[10px] font-bold uppercase tracking-wider bg-black text-white px-2 py-0.5 text-center mb-2">
-                B. NOMOR ABSEN (OMR)
+            {/* Box 2: NOMOR SISWA OMR MELEBAR KE SAMPING (sm:col-span-6) */}
+            <div className="sm:col-span-6 border-2 border-black p-2.5 rounded-xs bg-slate-50/60 flex flex-col justify-between">
+              <div className="flex items-center justify-between bg-black text-white px-2 py-0.5 mb-1.5 rounded-xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  B. NOMOR SISWA / PESERTA (OMR)
+                </span>
+                <span className="text-[8px] text-slate-300 font-normal">
+                  Hitamkan bulatan mendatar
+                </span>
               </div>
 
-              <div className="flex justify-center gap-6">
-                {/* Tens Column */}
-                <div className="text-center">
-                  <span className="text-[10px] font-bold block mb-1 text-slate-700">PULUHAN</span>
-                  <div className="w-8 h-8 border-2 border-black mb-2 flex items-center justify-center font-bold text-sm bg-white">
-                    {isSampleFilled ? tensDigit : ''}
+              {/* Grid OMR Baris Mendatar */}
+              <div className="bg-white border border-black p-1.5 rounded-xs space-y-1">
+                {/* Baris Panduan Angka 0 - 9 di Atas */}
+                <div className="flex items-center text-[9px] font-bold text-slate-700 pb-0.5 border-b border-slate-300">
+                  <div className="w-14 shrink-0 text-left pl-0.5 text-[8px] uppercase tracking-tight text-slate-600 font-bold">
+                    Digit
                   </div>
-                  {/* Bubbles 0 to 9 */}
-                  <div className="space-y-1">
-                    {Array.from({ length: 10 }, (_, d) => {
-                      const isSelected = isSampleFilled && d === tensDigit;
-                      return (
-                        <div
-                          key={d}
-                          className={`w-6 h-6 mx-auto rounded-full border border-black flex items-center justify-center text-[10px] font-bold ${
-                            isSelected ? 'bg-black text-white ring-1 ring-black' : 'bg-white text-slate-900'
-                          }`}
-                        >
-                          {isSelected ? 'X' : d}
-                        </div>
-                      );
-                    })}
+                  <div className="w-6 shrink-0 text-center text-[8px] uppercase tracking-tight text-slate-600 font-bold mr-1">
+                    Tulis
+                  </div>
+                  <div className="flex-1 flex justify-between px-0.5">
+                    {Array.from({ length: 10 }, (_, d) => (
+                      <span key={d} className="w-4.5 text-center font-mono font-bold text-[9px] text-slate-800">
+                        {d}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
-                {/* Ones Column */}
-                <div className="text-center">
-                  <span className="text-[10px] font-bold block mb-1 text-slate-700">SATUAN</span>
-                  <div className="w-8 h-8 border-2 border-black mb-2 flex items-center justify-center font-bold text-sm bg-white">
-                    {isSampleFilled ? onesDigit : ''}
-                  </div>
-                  {/* Bubbles 0 to 9 */}
-                  <div className="space-y-1">
-                    {Array.from({ length: 10 }, (_, d) => {
-                      const isSelected = isSampleFilled && d === onesDigit;
-                      return (
-                        <div
-                          key={d}
-                          className={`w-6 h-6 mx-auto rounded-full border border-black flex items-center justify-center text-[10px] font-bold ${
-                            isSelected ? 'bg-black text-white ring-1 ring-black' : 'bg-white text-slate-900'
-                          }`}
-                        >
-                          {isSelected ? 'X' : d}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Baris Mendatar untuk Setiap Digit */}
+                {digitsArray.map((digitVal, rowIdx) => {
+                  const label = studentNumberDigits === 2
+                    ? (rowIdx === 0 ? 'Puluhan' : 'Satuan')
+                    : (rowIdx === 0 ? 'Ratusan' : rowIdx === 1 ? 'Puluhan' : 'Satuan');
+
+                  return (
+                    <div key={rowIdx} className="flex items-center py-0.5">
+                      {/* Label Baris Digit */}
+                      <div className="w-14 shrink-0 text-left pl-0.5">
+                        <span className="text-[9px] font-bold uppercase text-slate-800 block leading-tight">
+                          {label}
+                        </span>
+                        <span className="text-[7px] text-slate-500 leading-none">D{rowIdx + 1}</span>
+                      </div>
+
+                      {/* Kotak Tulis Angka */}
+                      <div className="w-6 h-5 border-2 border-black shrink-0 flex items-center justify-center font-bold text-[11px] bg-white text-black font-mono mr-1">
+                        {isSampleFilled ? digitVal : ''}
+                      </div>
+
+                      {/* 10 Bulatan OMR Terentang Melebar ke Samping */}
+                      <div className="flex-1 flex justify-between px-0.5">
+                        {Array.from({ length: 10 }, (_, d) => {
+                          const isSelected = isSampleFilled && d === digitVal;
+                          return (
+                            <div
+                              key={d}
+                              className={`w-4.5 h-4.5 rounded-full border border-black flex items-center justify-center text-[8.5px] font-bold leading-none ${
+                                isSelected
+                                  ? 'bg-black text-white ring-1 ring-black'
+                                  : 'bg-white text-slate-900'
+                              }`}
+                            >
+                              {isSelected ? 'X' : d}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="text-[8px] text-slate-600 italic text-center mt-1 leading-tight">
+                Tulis angka pada kotak kiri, lalu hitamkan satu bulatan angka yang sesuai pada baris tersebut.
               </div>
             </div>
           </div>
 
           {/* BAGIAN LEMBAR JAWABAN PILIHAN GANDA */}
-          <div className="border-2 border-black p-3 mb-4 rounded-xs">
-            <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-3">
+          <div className="border-2 border-black p-2.5 mb-3 rounded-xs">
+            <div className="flex items-center justify-between border-b-2 border-black pb-1 mb-2">
               <span className="text-xs font-black uppercase tracking-wider text-black">
                 C. PILIHAN GANDA ({currentExam.pgCount} SOAL - BOBOT {currentExam.pgWeight}%)
               </span>
