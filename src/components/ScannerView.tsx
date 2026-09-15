@@ -14,7 +14,8 @@ import {
   Play, 
   Image as ImageIcon,
   Zap,
-  Info
+  Info,
+  Smartphone
 } from 'lucide-react';
 
 interface ScannerViewProps {
@@ -40,6 +41,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
   // Camera state
   const [cameraActive, setCameraActive] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraAspectRatio, setCameraAspectRatio] = useState<'portrait-paper' | 'portrait-tall'>('portrait-paper');
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -55,19 +57,33 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     setCameraActive(false);
   }, []);
 
-  // Start camera
+  // Start camera with portrait orientation constraints
   const startCamera = useCallback(async () => {
     stopCamera();
     setErrorMessage(null);
     try {
+      const targetRatio = cameraAspectRatio === 'portrait-paper' ? 3 / 4 : 9 / 16;
+      // Request portrait dimensions (height > width)
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode: facingMode,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1080 },
+          height: { ideal: 1440 },
+          aspectRatio: { ideal: targetRatio },
         },
       };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (specificConstraintErr) {
+        // Fallback to general constraints if specific ratio rejected by browser
+        console.warn('Fallback to basic camera constraint:', specificConstraintErr);
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode }
+        });
+      }
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -77,11 +93,11 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     } catch (err: any) {
       console.warn('Camera access error:', err);
       setErrorMessage(
-        'Tidak dapat mengakses kamera perangkat. Pastikan izin kamera telah diberikan atau gunakan mode unggah berkas.'
+        'Tidak dapat mengakses kamera perangkat. Pastikan izin kamera telah diberikan di browser atau gunakan mode unggah berkas foto.'
       );
       setCameraActive(false);
     }
-  }, [facingMode, stopCamera]);
+  }, [facingMode, cameraAspectRatio, stopCamera]);
 
   useEffect(() => {
     if (inputMode === 'camera') {
@@ -142,18 +158,39 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     }
   };
 
-  // Handle capture from camera feed
+  // Handle capture from camera feed precisely respecting portrait framing
   const handleCaptureCamera = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+    const vWidth = video.videoWidth || 1080;
+    const vHeight = video.videoHeight || 1440;
+    
+    // Target portrait ratio displayed to user
+    const targetRatio = cameraAspectRatio === 'portrait-paper' ? 3 / 4 : 9 / 16;
+    const currentVideoRatio = vWidth / vHeight;
+
+    let sx = 0;
+    let sy = 0;
+    let sWidth = vWidth;
+    let sHeight = vHeight;
+
+    // If source feed is wider than portrait frame (e.g. landscape laptop webcam), crop center
+    if (currentVideoRatio > targetRatio) {
+      sWidth = vHeight * targetRatio;
+      sx = (vWidth - sWidth) / 2;
+    } else if (currentVideoRatio < targetRatio) {
+      sHeight = vWidth / targetRatio;
+      sy = (vHeight - sHeight) / 2;
+    }
+
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    canvas.width = Math.round(sWidth);
+    canvas.height = Math.round(sHeight);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     processImage(dataUrl);
   };
 
@@ -287,10 +324,51 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
         </div>
       )}
 
-      {/* Mode 1: Camera Scanner View */}
+      {/* Mode 1: Camera Scanner View (Portrait Mode) */}
       {inputMode === 'camera' && (
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-xl relative">
-          <div className="relative aspect-4/3 sm:aspect-16/9 bg-black flex items-center justify-center overflow-hidden">
+        <div className="max-w-md mx-auto bg-slate-950 rounded-3xl border-2 border-slate-700/80 overflow-hidden shadow-2xl relative">
+          {/* Top Bar inside Camera View */}
+          <div className="bg-slate-900/90 backdrop-blur-md px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-white text-xs z-10 relative">
+            <div className="flex items-center gap-2 font-bold text-emerald-400">
+              <Smartphone className="w-4 h-4" />
+              <span>Layar Kamera Portrait</span>
+            </div>
+
+            {/* Portrait Ratio Selector */}
+            <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setCameraAspectRatio('portrait-paper')}
+                className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                  cameraAspectRatio === 'portrait-paper'
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+                title="Rasio 3:4 - Pas bentuk lembar LJK fisik (A4/F4)"
+              >
+                3:4 (LJK)
+              </button>
+              <button
+                type="button"
+                onClick={() => setCameraAspectRatio('portrait-tall')}
+                className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+                  cameraAspectRatio === 'portrait-tall'
+                    ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+                title="Rasio 9:16 - Layar penuh portrait smartphone"
+              >
+                9:16 (HP)
+              </button>
+            </div>
+          </div>
+
+          {/* Portrait Video Viewport */}
+          <div
+            className={`relative ${
+              cameraAspectRatio === 'portrait-paper' ? 'aspect-[3/4]' : 'aspect-[9/16]'
+            } w-full bg-black flex items-center justify-center overflow-hidden transition-all duration-300`}
+          >
             <video
               ref={videoRef}
               autoPlay
@@ -299,46 +377,55 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
               className="w-full h-full object-cover"
             />
 
-            {/* Camera Overlay Framing Guide */}
-            <div className="absolute inset-6 sm:inset-10 border-2 border-dashed border-emerald-400/80 rounded-xl pointer-events-none flex flex-col justify-between p-4">
-              {/* Corner Targets */}
-              <div className="flex justify-between">
-                <div className="w-8 h-8 border-t-4 border-l-4 border-emerald-400"></div>
-                <div className="w-8 h-8 border-t-4 border-r-4 border-emerald-400"></div>
+            {/* Camera Overlay Framing Guide (LJK Sheet Portrait Aspect Ratio 1 : 1.414) */}
+            <div className="absolute inset-5 sm:inset-6 border-2 border-dashed border-emerald-400/80 rounded-2xl pointer-events-none flex flex-col justify-between p-3.5 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+              {/* Top Corner Targets matching LJK black fiducials */}
+              <div className="flex justify-between items-start">
+                <div className="w-7 h-7 border-t-4 border-l-4 border-emerald-400 rounded-tl-sm shadow-xs"></div>
+                <div className="w-7 h-7 border-t-4 border-r-4 border-emerald-400 rounded-tr-sm shadow-xs"></div>
               </div>
 
-              {/* Center crosshair */}
-              <div className="self-center text-center bg-black/60 backdrop-blur-xs px-4 py-1.5 rounded-full text-[11px] font-semibold text-emerald-300 border border-emerald-400/40">
-                Posisikan 4 sudut lembar jawaban di dalam area bidik
+              {/* Center Guidance Badge & Scanning Line */}
+              <div className="space-y-2 text-center pointer-events-none">
+                <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
+                <div className="inline-block bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[10.5px] font-semibold text-emerald-300 border border-emerald-400/40 shadow-lg">
+                  Posisikan lembar LJK tegak lurus di dalam bingkai
+                </div>
               </div>
 
-              <div className="flex justify-between">
-                <div className="w-8 h-8 border-b-4 border-l-4 border-emerald-400"></div>
-                <div className="w-8 h-8 border-b-4 border-r-4 border-emerald-400"></div>
+              {/* Bottom Corner Targets matching LJK black fiducials */}
+              <div className="flex justify-between items-end">
+                <div className="w-7 h-7 border-b-4 border-l-4 border-emerald-400 rounded-bl-sm shadow-xs"></div>
+                <div className="w-7 h-7 border-b-4 border-r-4 border-emerald-400 rounded-br-sm shadow-xs"></div>
               </div>
             </div>
 
-            {/* Camera Controls Bar */}
-            <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-4 px-4">
+            {/* Bottom Camera Controls Bar */}
+            <div className="absolute bottom-4 left-0 right-0 flex items-center justify-center gap-4 px-4 z-10">
               <button
                 type="button"
                 onClick={toggleCameraFacing}
-                className="p-3 rounded-full bg-slate-800/80 hover:bg-slate-700 text-white border border-slate-600 shadow-md backdrop-blur-xs transition-transform active:scale-95"
-                title="Putar Kamera Depan/Belakang"
+                className="p-3 rounded-full bg-slate-900/85 hover:bg-slate-800 text-white border border-slate-600/80 shadow-lg backdrop-blur-sm transition-transform active:scale-95"
+                title="Putar Kamera Depan / Belakang"
               >
-                <SwitchCamera className="w-5 h-5" />
+                <SwitchCamera className="w-5 h-5 text-slate-200" />
               </button>
 
               <button
                 type="button"
                 onClick={handleCaptureCamera}
                 disabled={isScanning || !cameraActive}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full font-bold text-sm text-white bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-900/40 transition-transform active:scale-95 disabled:opacity-50"
+                className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full font-bold text-sm text-slate-950 bg-emerald-400 hover:bg-emerald-300 shadow-xl shadow-emerald-950/60 transition-transform active:scale-95 disabled:opacity-50"
               >
-                <Camera className="w-5 h-5" />
-                <span>Ambil Foto & Periksa</span>
+                <Camera className="w-5 h-5 text-slate-950" />
+                <span>Pindai Lembar LJK</span>
               </button>
             </div>
+          </div>
+
+          {/* Portrait Guidance Footer */}
+          <div className="bg-slate-900 px-4 py-2 text-center text-[11px] text-slate-400 border-t border-slate-800">
+            Arahkan kamera tegak (portrait) lurus di atas lembar jawaban dengan pencahayaan merata.
           </div>
         </div>
       )}
