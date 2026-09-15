@@ -19,13 +19,25 @@ async function captureElementAsImage(
   element: HTMLElement,
   scale: number
 ): Promise<{ dataUrl: string; width: number; height: number }> {
+  const targetWidth = 794; // 210mm A4 width at 96 DPI
   try {
     const canvas = await html2canvas(element, {
       scale,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
-      windowWidth: element.scrollWidth || 800,
+      windowWidth: 1280,
+      width: targetWidth,
+      onclone: (clonedDoc) => {
+        const clonedEl = clonedDoc.getElementById(element.id) || clonedDoc.querySelector('#printable-ljk');
+        if (clonedEl) {
+          (clonedEl as HTMLElement).style.width = '794px';
+          (clonedEl as HTMLElement).style.minWidth = '794px';
+          (clonedEl as HTMLElement).style.maxWidth = '794px';
+          (clonedEl as HTMLElement).style.boxSizing = 'border-box';
+          (clonedEl as HTMLElement).style.margin = '0 auto';
+        }
+      },
     });
     return {
       dataUrl: canvas.toDataURL('image/jpeg', 0.98),
@@ -38,6 +50,7 @@ async function captureElementAsImage(
     const dataUrl = await toPng(element, {
       pixelRatio: scale,
       backgroundColor: '#ffffff',
+      width: targetWidth,
     });
 
     const img = new Image();
@@ -49,8 +62,8 @@ async function captureElementAsImage(
 
     return {
       dataUrl,
-      width: img.naturalWidth || element.scrollWidth * scale,
-      height: img.naturalHeight || element.scrollHeight * scale,
+      width: img.naturalWidth || targetWidth * scale,
+      height: img.naturalHeight || (element.offsetHeight || 1100) * scale,
     };
   }
 }
@@ -110,7 +123,7 @@ export async function exportElementToPdf(
 
   // Center the content on the page
   const xOffset = marginMm + (printableWidth - renderedWidth) / 2;
-  const yOffset = marginMm;
+  const yOffset = marginMm + Math.max(0, (printableHeight - renderedHeight) / 2);
 
   pdf.addImage(dataUrl, 'JPEG', xOffset, yOffset, renderedWidth, renderedHeight, undefined, 'FAST');
 

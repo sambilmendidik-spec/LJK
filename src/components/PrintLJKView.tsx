@@ -103,6 +103,29 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
             size: ${paperSize === 'F4' ? '215mm 330mm' : 'A4 portrait'};
             margin: 5mm;
           }
+          body {
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          body * {
+            visibility: hidden;
+          }
+          #printable-ljk, #printable-ljk * {
+            visibility: visible;
+          }
+          #printable-ljk {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            min-width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 6mm !important;
+            border: 2px solid black !important;
+            box-shadow: none !important;
+          }
         }`}
       </style>
 
@@ -327,11 +350,11 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
       </div>
 
       {/* PRINTABLE LJK CANVAS / PAPER CONTAINER */}
-      <div className="flex justify-center">
+      <div className="w-full overflow-x-auto pb-6 flex justify-start lg:justify-center">
         <div 
           id="printable-ljk" 
-          className={`w-full max-w-[840px] bg-white text-slate-900 border-2 border-slate-800 shadow-xl rounded-sm p-6 sm:p-7 relative print:border-2 print:border-black print:p-5 print:shadow-none print:m-0 print:w-full print:max-w-none select-none ${
-            paperSize === 'F4' ? 'min-h-[1200px]' : 'min-h-[1100px]'
+          className={`w-[794px] min-w-[794px] max-w-[794px] bg-white text-slate-900 border-2 border-slate-800 shadow-xl rounded-sm p-6 relative print:border-2 print:border-black print:p-5 print:shadow-none print:m-0 print:w-full print:max-w-none select-none ${
+            paperSize === 'F4' ? 'min-h-[1180px]' : 'min-h-[1090px]'
           }`}
           style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
         >
@@ -358,8 +381,8 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               {/* Header Titles */}
               <div className="flex-1 text-center">
                 <h4 className="text-[10px] font-bold tracking-wider uppercase text-slate-800">{customHeader}</h4>
-                <h2 className="text-base sm:text-lg font-black tracking-tight uppercase text-black">{currentExam.schoolName}</h2>
-                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wide text-slate-900 mt-0.5">
+                <h2 className="text-lg font-black tracking-tight uppercase text-black">{currentExam.schoolName}</h2>
+                <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900 mt-0.5">
                   LEMBAR JAWABAN KOMPUTER (LJK)
                 </h3>
                 <p className="text-[10.5px] font-semibold text-slate-700">
@@ -377,9 +400,9 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
           </div>
 
           {/* BAGIAN IDENTITAS SISWA & NOMOR SISWA OMR (MELEBAR KE SAMPING - HEMAT RUANG) */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
-            {/* Box 1: Identitas Siswa (sm:col-span-6) */}
-            <div className="sm:col-span-6 border-2 border-black p-2.5 rounded-xs space-y-1.5 bg-white">
+          <div className="grid grid-cols-12 gap-3 mb-3">
+            {/* Box 1: Identitas Siswa (col-span-6) */}
+            <div className="col-span-6 border-2 border-black p-2.5 rounded-xs space-y-1.5 bg-white">
               <div className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 px-2 py-0.5 border-b border-black">
                 A. IDENTITAS PESERTA DIDIK
               </div>
@@ -413,8 +436,8 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               </div>
             </div>
 
-            {/* Box 2: NOMOR SISWA OMR MELEBAR KE SAMPING (sm:col-span-6) */}
-            <div className="sm:col-span-6 border-2 border-black p-2.5 rounded-xs bg-slate-50/60 flex flex-col justify-between">
+            {/* Box 2: NOMOR SISWA OMR MELEBAR KE SAMPING (col-span-6) */}
+            <div className="col-span-6 border-2 border-black p-2.5 rounded-xs bg-slate-50/60 flex flex-col justify-between">
               <div className="flex items-center justify-between bg-black text-white px-2 py-0.5 mb-1.5 rounded-xs">
                 <span className="text-[10px] font-bold uppercase tracking-wider">
                   B. NOMOR SISWA / PESERTA (OMR)
@@ -504,8 +527,8 @@ export const PrintLJKView: React.FC<PrintLJKViewProps> = ({
               </span>
             </div>
 
-            {/* Questions Columns Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {/* Questions Columns Grid (Always 4 or 5 columns on fixed paper width) */}
+            <div className={`grid ${totalCols === 5 ? 'grid-cols-5' : 'grid-cols-4'} gap-2`}>
               {Array.from({ length: totalCols }, (_, colIdx) => {
                 const start = colIdx * questionsPerCol + 1;
                 const end = Math.min(start + questionsPerCol - 1, currentExam.pgCount);
